@@ -1,8 +1,10 @@
 import 'package:FitGym/core/gen/assets.gen.dart';
+import 'package:FitGym/core/services/workout_service.dart';
 import 'package:FitGym/core/theme/app_colors.dart';
 import 'package:FitGym/core/theme/app_icon.dart';
 import 'package:FitGym/core/theme/app_text_styles.dart';
 import 'package:FitGym/model/muscle.dart';
+import 'package:FitGym/modules/layout/layout_screen.dart';
 import 'package:FitGym/modules/layout/muscles/body_map.dart';
 import 'package:FitGym/modules/layout/widgets/app_surface.dart';
 import 'package:FitGym/modules/layout/widgets/check_circle.dart';
@@ -11,55 +13,54 @@ import 'package:FitGym/modules/layout/widgets/sets_label.dart';
 import 'package:FitGym/modules/layout/widgets/tab_page.dart';
 import 'package:flutter/material.dart';
 
-class MusclesScreen extends StatefulWidget {
-  const MusclesScreen({super.key, this.initialMuscle = Muscle.shoulders});
-
-  final Muscle initialMuscle;
-
-  @override
-  State<MusclesScreen> createState() => _MusclesScreenState();
-}
-
-class _MusclesScreenState extends State<MusclesScreen> {
-  late Muscle _selected = widget.initialMuscle;
+/// Pick the muscle to train; tapping one opens its exercises straight away.
+class MusclesScreen extends StatelessWidget {
+  const MusclesScreen({super.key});
 
   @override
   Widget build(BuildContext context) {
-    return TabPage(
-      spacing: 16,
-      children: [
-        Row(
-          spacing: 12,
+    final layout = LayoutScreen.of(context);
+
+    return ValueListenableBuilder<Muscle?>(
+      valueListenable: layout.exerciseFilter,
+      builder: (context, current, _) {
+        return TabPage(
+          spacing: 16,
           children: [
-            Expanded(child: Text('عضلات الجسم', style: AppTextStyles.pageTitle)),
-            IconBox(
-              icon: Assets.icons.arrowBack,
-              background: AppColors.surface,
-              iconColor: AppColors.textPrimary,
-              label: 'رجوع',
-              onPressed: () => Navigator.pop(context),
+            Row(
+              spacing: 12,
+              children: [
+                Expanded(child: Text('عضلات الجسم', style: AppTextStyles.pageTitle)),
+                IconBox(
+                  icon: Assets.icons.arrowBack,
+                  background: AppColors.surface,
+                  iconColor: AppColors.textPrimary,
+                  label: 'رجوع',
+                  onPressed: () => Navigator.pop(context),
+                ),
+              ],
             ),
+            AppSurface(
+              radius: 22,
+              padding: const EdgeInsets.fromLTRB(12, 18, 12, 14),
+              child: Row(
+                mainAxisAlignment: MainAxisAlignment.center,
+                spacing: 40,
+                children: [
+                  _BodyView(side: BodySide.front, highlight: current, label: 'أمام'),
+                  _BodyView(side: BodySide.back, highlight: current, label: 'خلف'),
+                ],
+              ),
+            ),
+            for (final muscle in Muscle.values)
+              _MuscleTile(
+                muscle: muscle,
+                selected: muscle == current,
+                onTap: () => layout.openExercises(muscle: muscle),
+              ),
           ],
-        ),
-        AppSurface(
-          radius: 22,
-          padding: const EdgeInsets.fromLTRB(12, 18, 12, 14),
-          child: Row(
-            mainAxisAlignment: MainAxisAlignment.center,
-            spacing: 40,
-            children: [
-              _BodyView(side: BodySide.front, highlight: _selected, label: 'أمام'),
-              _BodyView(side: BodySide.back, highlight: _selected, label: 'خلف'),
-            ],
-          ),
-        ),
-        for (final muscle in Muscle.values)
-          _MuscleTile(
-            muscle: muscle,
-            selected: muscle == _selected,
-            onTap: () => setState(() => _selected = muscle),
-          ),
-      ],
+        );
+      },
     );
   }
 }
@@ -68,7 +69,7 @@ class _BodyView extends StatelessWidget {
   const _BodyView({required this.side, required this.highlight, required this.label});
 
   final BodySide side;
-  final Muscle highlight;
+  final Muscle? highlight;
   final String label;
 
   @override
@@ -92,6 +93,8 @@ class _MuscleTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final count = WorkoutService.exercisesFor(muscle).length;
+
     return Semantics(
       selected: selected,
       child: AppSurface(
@@ -109,7 +112,13 @@ class _MuscleTile extends StatelessWidget {
                 spacing: 2,
                 children: [
                   Text('تمرين ال${muscle.label}', style: AppTextStyles.body(16, fontWeight: FontWeight.w700)),
-                  SetsLabel(muscle.setsLabel),
+                  Row(
+                    spacing: 6,
+                    children: [
+                      SetsLabel(muscle.setsLabel),
+                      Text('· ${WorkoutService.exercisesCountLabel(count)}', style: AppTextStyles.caption),
+                    ],
+                  ),
                 ],
               ),
             ),

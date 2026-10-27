@@ -31,7 +31,7 @@ class HomeScreen extends StatelessWidget {
         _WeekSection(week: app.week, doneDays: app.weekDoneDays, plannedDays: app.weekPlannedDays),
         _MusclesSection(
           onSelect: (muscle) => LayoutScreen.of(context).openExercises(muscle: muscle),
-          onShowAll: () => LayoutScreen.of(context).openExercises(),
+          onShowAll: () => LayoutScreen.of(context).openMuscles(),
         ),
       ],
     );

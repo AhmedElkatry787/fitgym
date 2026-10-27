@@ -1,5 +1,4 @@
-import 'dart:async';
-
+import 'package:FitGym/core/app_routes/app_routes.dart';
 import 'package:FitGym/core/gen/assets.gen.dart';
 import 'package:FitGym/core/services/app_controller.dart';
 import 'package:FitGym/core/services/app_scope.dart';
@@ -7,15 +6,20 @@ import 'package:FitGym/core/services/workout_service.dart';
 import 'package:FitGym/core/theme/app_colors.dart';
 import 'package:FitGym/core/theme/app_icon.dart';
 import 'package:FitGym/core/theme/app_text_styles.dart';
+import 'package:FitGym/model/exercise_model.dart';
+import 'package:FitGym/model/exercise_session_model.dart';
+import 'package:FitGym/model/set_entry_model.dart';
 import 'package:FitGym/model/workout_model.dart';
-import 'package:FitGym/modules/layout/program/weight_sheet.dart';
+import 'package:FitGym/modules/layout/program/set_sheet.dart';
 import 'package:FitGym/modules/layout/widgets/app_surface.dart';
 import 'package:FitGym/modules/layout/widgets/check_circle.dart';
 import 'package:FitGym/modules/layout/widgets/icon_box.dart';
+import 'package:FitGym/modules/layout/widgets/rest_timer.dart';
+import 'package:FitGym/modules/layout/widgets/section_header.dart';
+import 'package:FitGym/modules/layout/widgets/set_chip.dart';
 import 'package:FitGym/modules/layout/widgets/sets_label.dart';
 import 'package:FitGym/modules/layout/widgets/tab_page.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 
 class ProgramScreen extends StatefulWidget {
   const ProgramScreen({super.key});
@@ -25,85 +29,31 @@ class ProgramScreen extends StatefulWidget {
 }
 
 class _ProgramScreenState extends State<ProgramScreen> {
-  Duration _rest = WorkoutService.restDuration;
-  Timer? _restTimer;
+  final _rest = RestTimer();
 
   @override
   void dispose() {
-    _restTimer?.cancel();
+    _rest.dispose();
     super.dispose();
   }
 
-  /// Tapping a set marks it and every set before it done; tapping a done set
-  /// un-marks it and every set after it. Finishing a set starts the rest.
-  void _toggleSet(AppController app, WorkoutExerciseModel item, int set) {
-    final done = app.doneSets(item.exercise);
-    final sets = set < done ? set : set + 1;
-    app.setDoneSets(item.exercise, sets);
-
-    if (app.activeComplete) {
-      _stopRest();
-    } else if (sets > done) {
-      _startRest();
-    }
+  /// A done set opens for editing; any other circle logs the next set.
+  /// Logging a set starts the rest.
+  Future<void> _openSet(AppController app, WorkoutExerciseModel item, int index) async {
+    final logged = await editSet(context, app, item, index);
+    if (!logged || !mounted) return;
+    app.activeComplete ? _rest.reset() : _rest.start();
   }
 
-  Future<void> _editWeight(AppController app, WorkoutExerciseModel item) async {
-    final kg = await showWeightSheet(
-      context,
-      exerciseName: item.exercise.name,
-      initialKg: app.todayWeight(item.exercise) ?? app.lastWeight(item.exercise) ?? 20,
-    );
-    if (kg != null) app.setWeight(item.exercise, kg);
-  }
-
-  void _startRest() {
-    _restTimer?.cancel();
-    setState(() {
-      _rest = WorkoutService.restDuration;
-      _restTimer = Timer.periodic(const Duration(seconds: 1), (_) => _tickRest());
-    });
-  }
-
-  void _toggleRest() {
-    if (_restTimer != null) {
-      _restTimer!.cancel();
-      setState(() => _restTimer = null);
-    } else if (_rest == Duration.zero) {
-      _startRest();
-    } else {
-      setState(() => _restTimer = Timer.periodic(const Duration(seconds: 1), (_) => _tickRest()));
-    }
-  }
-
-  void _tickRest() {
-    setState(() {
-      _rest -= const Duration(seconds: 1);
-      if (_rest > Duration.zero) return;
-      _rest = Duration.zero;
-      _restTimer?.cancel();
-      _restTimer = null;
-    });
-    if (_rest == Duration.zero) HapticFeedback.heavyImpact();
-  }
-
-  void _stopRest() {
-    _restTimer?.cancel();
-    setState(() {
-      _restTimer = null;
-      _rest = WorkoutService.restDuration;
-    });
-  }
-
-  String get _restLabel {
-    final seconds = (_rest.inSeconds % 60).toString().padLeft(2, '0');
-    return '${_rest.inMinutes}:$seconds';
+  void _openExercise(ExerciseModel exercise) {
+    Navigator.pushNamed(context, AppRoutes.exerciseDetails, arguments: exercise);
   }
 
   @override
   Widget build(BuildContext context) {
     final app = AppScope.of(context);
     final workout = app.activeWorkout;
+    final extras = app.extraExercisesToday;
 
     return TabPage(
       spacing: 14,
@@ -150,23 +100,61 @@ class _ProgramScreenState extends State<ProgramScreen> {
         for (final item in workout.exercises)
           _ProgramExerciseCard(
             item: item,
-            doneSets: app.doneSets(item.exercise),
-            weightKg: app.todayWeight(item.exercise),
-            onSetTap: (set) => _toggleSet(app, item, set),
-            onTap: () => _editWeight(app, item),
+            sets: app.setsFor(item.exercise),
+            previous: app.previousSession(item.exercise),
+            onSetTap: (index) => _openSet(app, item, index),
+            onTap: () => _openExercise(item.exercise),
           ),
         Padding(
           padding: const EdgeInsets.only(top: 4),
-          child: app.activeComplete
-              ? const _DoneBar()
-              : _RestBar(
-                  label: _restLabel,
-                  running: _restTimer != null,
-                  onToggle: _toggleRest,
-                  onReset: _stopRest,
-                ),
+          child: app.activeComplete ? const DoneBar(text: 'خلّصت تمرين النهارده') : RestBar(timer: _rest),
         ),
+        if (extras.isNotEmpty) ...[
+          const Padding(padding: EdgeInsets.only(top: 8), child: SectionHeader(title: 'زيادة النهارده')),
+          for (final exercise in extras)
+            _ExtraExerciseTile(
+              exercise: exercise,
+              sets: app.setsFor(exercise),
+              onTap: () => _openExercise(exercise),
+            ),
+        ],
       ],
+    );
+  }
+}
+
+/// An exercise trained today outside the plan.
+class _ExtraExerciseTile extends StatelessWidget {
+  const _ExtraExerciseTile({required this.exercise, required this.sets, required this.onTap});
+
+  final ExerciseModel exercise;
+  final List<SetEntryModel> sets;
+  final VoidCallback onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    return AppSurface(
+      borderColor: AppColors.surfaceRaised,
+      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      onTap: onTap,
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        spacing: 8,
+        children: [
+          Row(
+            spacing: 8,
+            children: [
+              Expanded(child: Text(exercise.name, style: AppTextStyles.body(15, fontWeight: FontWeight.w700))),
+              Text(exercise.muscle.label, style: AppTextStyles.caption),
+            ],
+          ),
+          Wrap(
+            spacing: 6,
+            runSpacing: 4,
+            children: [for (final set in sets) SetChip(set: set, exercise: exercise)],
+          ),
+        ],
+      ),
     );
   }
 }
@@ -174,35 +162,40 @@ class _ProgramScreenState extends State<ProgramScreen> {
 class _ProgramExerciseCard extends StatelessWidget {
   const _ProgramExerciseCard({
     required this.item,
-    required this.doneSets,
-    required this.weightKg,
+    required this.sets,
+    required this.previous,
     required this.onSetTap,
     required this.onTap,
   });
 
   final WorkoutExerciseModel item;
-  final int doneSets;
-  final double? weightKg;
+
+  /// Sets finished today.
+  final List<SetEntryModel> sets;
+
+  /// The last session before today, to beat.
+  final ExerciseSessionModel? previous;
   final ValueChanged<int> onSetTap;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    final weight = weightKg;
+    final exercise = item.exercise;
+    final previous = this.previous;
 
     return AppSurface(
       borderColor: AppColors.surfaceRaised,
       padding: const EdgeInsets.all(12),
       onTap: onTap,
-      semanticLabel: 'سجّل وزن ${item.exercise.name}',
+      semanticLabel: 'تقدّم ${exercise.name}',
       child: Row(
         spacing: 14,
         children: [
           Column(
             spacing: 6,
             children: [
-              for (var set = 0; set < item.sets; set++)
-                _SetToggle(number: set + 1, done: set < doneSets, onTap: () => onSetTap(set)),
+              for (var index = 0; index < item.sets; index++)
+                _SetToggle(number: index + 1, done: index < sets.length, onTap: () => onSetTap(index)),
             ],
           ),
           Expanded(
@@ -210,12 +203,24 @@ class _ProgramExerciseCard extends StatelessWidget {
               crossAxisAlignment: CrossAxisAlignment.start,
               spacing: 4,
               children: [
-                Text(item.exercise.name, style: AppTextStyles.body(15, fontWeight: FontWeight.w700)),
+                Text(exercise.name, style: AppTextStyles.body(15, fontWeight: FontWeight.w700)),
                 SetsLabel(item.label),
-                Text(
-                  weight == null ? 'سجّل الوزن' : '${WorkoutService.formatWeight(weight)} كجم',
-                  style: AppTextStyles.body(12, fontWeight: FontWeight.w600, color: AppColors.primary),
-                ),
+                if (sets.isNotEmpty)
+                  Wrap(
+                    spacing: 6,
+                    runSpacing: 4,
+                    children: [for (final set in sets) SetChip(set: set, exercise: exercise)],
+                  ),
+                if (previous != null)
+                  Text(
+                    'المرة اللي فاتت: ${WorkoutService.formatSet(previous.topSet, exercise)}',
+                    style: AppTextStyles.body(12, color: AppColors.textSecondary),
+                  )
+                else if (sets.isEmpty)
+                  Text(
+                    'دوس على الدايرة وسجّل الوزن',
+                    style: AppTextStyles.body(12, fontWeight: FontWeight.w600, color: AppColors.primary),
+                  ),
               ],
             ),
           ),
@@ -260,85 +265,6 @@ class _SetToggle extends StatelessWidget {
                   border: Border.all(color: AppColors.outline, width: 2),
                 ),
               ),
-      ),
-    );
-  }
-}
-
-class _RestBar extends StatelessWidget {
-  const _RestBar({required this.label, required this.running, required this.onToggle, required this.onReset});
-
-  final String label;
-  final bool running;
-  final VoidCallback onToggle;
-  final VoidCallback onReset;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 10),
-      decoration: BoxDecoration(color: AppColors.surfaceRaised, borderRadius: BorderRadius.circular(18)),
-      child: Row(
-        spacing: 12,
-        children: [
-          IconBox(
-            icon: Assets.icons.close,
-            background: AppColors.primary,
-            iconColor: AppColors.background,
-            iconSize: 14,
-            size: 28,
-            label: 'إلغاء الراحة',
-            onPressed: onReset,
-          ),
-          Expanded(child: Text('الراحة', style: AppTextStyles.body(15, fontWeight: FontWeight.w600))),
-          AppSurface(
-            color: AppColors.primary,
-            radius: 999,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
-            onTap: onToggle,
-            semanticLabel: running ? 'إيقاف الراحة' : 'ابدأ الراحة',
-            child: SizedBox(
-              height: 40,
-              child: Row(
-                mainAxisSize: MainAxisSize.min,
-                textDirection: TextDirection.ltr,
-                spacing: 6,
-                children: [
-                  AppIcon(running ? Assets.icons.pause : Assets.icons.play, color: AppColors.background, size: 14),
-                  Text(
-                    label,
-                    style: AppTextStyles.body(15, fontWeight: FontWeight.w700, color: AppColors.background),
-                  ),
-                ],
-              ),
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _DoneBar extends StatelessWidget {
-  const _DoneBar();
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
-      decoration: BoxDecoration(
-        color: AppColors.surfaceRaised,
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppColors.primary, width: 1.5),
-      ),
-      child: Row(
-        spacing: 12,
-        children: [
-          const CheckCircle(size: 28, iconSize: 15),
-          Expanded(
-            child: Text('خلّصت تمرين النهارده', style: AppTextStyles.body(15, fontWeight: FontWeight.w700)),
-          ),
-        ],
       ),
     );
   }

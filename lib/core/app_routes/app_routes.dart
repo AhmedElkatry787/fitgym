@@ -9,4 +9,8 @@ class AppRoutes {
   static const exercises = 'exercises';
   static const muscles = 'muscles';
   static const program = 'program';
+
+  // In both navigators: from the exercises and program screens, and from the
+  // progress tab.
+  static const exerciseDetails = 'exercise_details';
 }

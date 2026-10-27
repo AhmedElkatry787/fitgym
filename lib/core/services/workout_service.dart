@@ -1,5 +1,6 @@
 import 'package:FitGym/model/exercise_model.dart';
 import 'package:FitGym/model/muscle.dart';
+import 'package:FitGym/model/set_entry_model.dart';
 import 'package:FitGym/model/workout_model.dart';
 
 /// The fixed catalog: every exercise, the workouts, and which day each one is
@@ -22,20 +23,20 @@ class WorkoutService {
     featured: true,
   );
   static const chestFly = ExerciseModel(id: 'chest_fly', name: 'تفتيح صدر', muscle: Muscle.chest);
-  static const pushUp = ExerciseModel(id: 'push_up', name: 'ضغط أرضي', muscle: Muscle.chest);
+  static const pushUp = ExerciseModel(id: 'push_up', name: 'ضغط أرضي', muscle: Muscle.chest, bodyweight: true);
   static const inclineBenchPress = ExerciseModel(id: 'incline_bench_press', name: 'ضغط بار مائل', muscle: Muscle.chest);
   static const declineBenchPress = ExerciseModel(id: 'decline_bench_press', name: 'ضغط بار مقلوب', muscle: Muscle.chest);
   static const dumbbellPress = ExerciseModel(id: 'dumbbell_press', name: 'ضغط دمبل مستوي', muscle: Muscle.chest);
   static const cableCrossover = ExerciseModel(id: 'cable_crossover', name: 'كروس أوفر كابل', muscle: Muscle.chest);
   static const pecDeck = ExerciseModel(id: 'pec_deck', name: 'تفتيح بالجهاز', muscle: Muscle.chest);
-  static const chestDips = ExerciseModel(id: 'chest_dips', name: 'ديبس صدر', muscle: Muscle.chest);
+  static const chestDips = ExerciseModel(id: 'chest_dips', name: 'ديبس صدر', muscle: Muscle.chest, bodyweight: true);
 
   // Back
   static const deadlift = ExerciseModel(id: 'deadlift', name: 'سحب أرضي', muscle: Muscle.back);
   static const latPulldown = ExerciseModel(id: 'lat_pulldown', name: 'سحب علوي', muscle: Muscle.back);
   static const barbellRow = ExerciseModel(id: 'barbell_row', name: 'تجديف بار', muscle: Muscle.back);
   static const cableRow = ExerciseModel(id: 'cable_row', name: 'تجديف كابل', muscle: Muscle.back);
-  static const pullUp = ExerciseModel(id: 'pull_up', name: 'عقلة', muscle: Muscle.back);
+  static const pullUp = ExerciseModel(id: 'pull_up', name: 'عقلة', muscle: Muscle.back, bodyweight: true);
   static const dumbbellRow = ExerciseModel(id: 'dumbbell_row', name: 'تجديف دمبل', muscle: Muscle.back);
   static const closeGripPulldown = ExerciseModel(id: 'close_grip_pulldown', name: 'سحب علوي ضيق', muscle: Muscle.back);
   static const tBarRow = ExerciseModel(id: 't_bar_row', name: 'تجديف تي بار', muscle: Muscle.back);
@@ -72,7 +73,7 @@ class WorkoutService {
     name: 'ترايبس دمبل خلف الراس',
     muscle: Muscle.arms,
   );
-  static const benchDips = ExerciseModel(id: 'bench_dips', name: 'ديبس ترايبس', muscle: Muscle.arms);
+  static const benchDips = ExerciseModel(id: 'bench_dips', name: 'ديبس ترايبس', muscle: Muscle.arms, bodyweight: true);
   static const closeGripBenchPress = ExerciseModel(
     id: 'close_grip_bench_press',
     name: 'ضغط بار ضيق',
@@ -96,35 +97,32 @@ class WorkoutService {
   static const shrug = ExerciseModel(id: 'shrug', name: 'ترابيس دمبل', muscle: Muscle.shoulders);
 
   // Abs
-  static const plank = ExerciseModel(id: 'plank', name: 'البلانك', muscle: Muscle.abs);
-  static const crunch = ExerciseModel(id: 'crunch', name: 'كرانش', muscle: Muscle.abs);
-  static const legRaise = ExerciseModel(id: 'leg_raise', name: 'رفع رجل', muscle: Muscle.abs);
-  static const sidePlank = ExerciseModel(id: 'side_plank', name: 'بلانك جانبي', muscle: Muscle.abs);
-  static const bicycleCrunch = ExerciseModel(id: 'bicycle_crunch', name: 'كرانش دراجة', muscle: Muscle.abs);
+  static const plank = ExerciseModel(id: 'plank', name: 'البلانك', muscle: Muscle.abs, bodyweight: true, timed: true);
+  static const crunch = ExerciseModel(id: 'crunch', name: 'كرانش', muscle: Muscle.abs, bodyweight: true);
+  static const legRaise = ExerciseModel(id: 'leg_raise', name: 'رفع رجل', muscle: Muscle.abs, bodyweight: true);
+  static const sidePlank = ExerciseModel(id: 'side_plank', name: 'بلانك جانبي', muscle: Muscle.abs, bodyweight: true, timed: true);
+  static const bicycleCrunch = ExerciseModel(id: 'bicycle_crunch', name: 'كرانش دراجة', muscle: Muscle.abs, bodyweight: true);
   static const russianTwist = ExerciseModel(id: 'russian_twist', name: 'روسيان تويست', muscle: Muscle.abs);
-  static const abWheel = ExerciseModel(id: 'ab_wheel', name: 'عجلة البطن', muscle: Muscle.abs);
+  static const abWheel = ExerciseModel(id: 'ab_wheel', name: 'عجلة البطن', muscle: Muscle.abs, bodyweight: true);
   static const cableCrunch = ExerciseModel(id: 'cable_crunch', name: 'كرانش كابل', muscle: Muscle.abs);
-  static const mountainClimber = ExerciseModel(id: 'mountain_climber', name: 'متسلق الجبل', muscle: Muscle.abs);
-  static const hangingLegRaise = ExerciseModel(id: 'hanging_leg_raise', name: 'رفع رجل معلّق', muscle: Muscle.abs);
+  static const mountainClimber = ExerciseModel(id: 'mountain_climber', name: 'متسلق الجبل', muscle: Muscle.abs, bodyweight: true, timed: true);
+  static const hangingLegRaise = ExerciseModel(id: 'hanging_leg_raise', name: 'رفع رجل معلّق', muscle: Muscle.abs, bodyweight: true);
 
-  /// The first six are the cards from the design; the rest follow by muscle.
+  /// Grouped by muscle, in the order the exercises screen shows them.
   static const exercises = [
-    inclineDumbbellPress,
-    shoulderPress,
-    deadlift,
-    chestFly,
-    squat,
-    plank,
     // Chest
     benchPress,
+    inclineDumbbellPress,
     inclineBenchPress,
     dumbbellPress,
     declineBenchPress,
+    chestFly,
     cableCrossover,
     pecDeck,
     chestDips,
     pushUp,
     // Back
+    deadlift,
     pullUp,
     latPulldown,
     closeGripPulldown,
@@ -134,6 +132,7 @@ class WorkoutService {
     cableRow,
     backExtension,
     // Legs
+    squat,
     legPress,
     hackSquat,
     bulgarianSplitSquat,
@@ -157,6 +156,7 @@ class WorkoutService {
     closeGripBenchPress,
     benchDips,
     // Shoulders
+    shoulderPress,
     militaryPress,
     arnoldPress,
     lateralRaise,
@@ -167,6 +167,7 @@ class WorkoutService {
     uprightRow,
     shrug,
     // Abs
+    plank,
     crunch,
     cableCrunch,
     bicycleCrunch,
@@ -250,6 +251,15 @@ class WorkoutService {
     return null;
   }
 
+  /// Days of the weekly plan that include [exercise], with its sets there.
+  static List<({int day, WorkoutModel workout, WorkoutExerciseModel item})> plannedDaysFor(ExerciseModel exercise) {
+    return [
+      for (final MapEntry(key: day, value: workout) in weeklyPlan.entries)
+        for (final item in workout.exercises)
+          if (item.exercise == exercise) (day: day, workout: workout, item: item),
+    ];
+  }
+
   /// Exercises for [muscle] (all of them when null) whose name contains [query].
   static List<ExerciseModel> exercisesFor(Muscle? muscle, {String query = ''}) {
     return exercises.where((exercise) {
@@ -268,8 +278,36 @@ class WorkoutService {
     };
   }
 
-  /// 60 → `60`, 62.5 → `62.5`.
-  static String formatWeight(double kg) {
-    return kg == kg.roundToDouble() ? '${kg.round()}' : kg.toStringAsFixed(1);
+  static String setsCountLabel(int count) {
+    return switch (count) {
+      1 => 'مجموعة واحدة',
+      2 => 'مجموعتين',
+      >= 3 && <= 10 => '$count مجموعات',
+      _ => '$count مجموعة',
+    };
   }
+
+  /// 60 → `60`, 62.5 → `62.5`, 61.25 → `61.25`.
+  static String formatWeight(double kg) {
+    return kg.toStringAsFixed(2).replaceFirst(RegExp(r'\.?0+$'), '');
+  }
+
+  /// Keeps [text] left-to-right inside Arabic text, so `60×10` doesn't show
+  /// up as `10×60`.
+  static String ltr(String text) => '\u2066$text\u2069';
+
+  /// `60×10`, `12 عدّة` with body weight, `45 ث` when timed, or just the
+  /// weight for sets saved before reps were tracked.
+  static String formatSet(SetEntryModel set, ExerciseModel exercise) {
+    final weight = '${formatWeight(set.weightKg)} كجم';
+    final reps = exercise.timed ? '${set.reps} ث' : '${set.reps} عدّة';
+
+    if (set.reps == 0) return set.weightKg == 0 ? 'مجموعة' : weight;
+    if (set.weightKg == 0) return reps;
+    if (exercise.timed) return '$weight · $reps';
+    return ltr('${formatWeight(set.weightKg)}×${set.reps}');
+  }
+
+  /// `تلات 27/10`.
+  static String dateLabel(DateTime day) => '${dayName(day)} ${ltr('${day.day}/${day.month}')}';
 }

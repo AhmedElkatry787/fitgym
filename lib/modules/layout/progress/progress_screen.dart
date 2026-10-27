@@ -1,5 +1,6 @@
 import 'dart:math' as math;
 
+import 'package:FitGym/core/app_routes/app_routes.dart';
 import 'package:FitGym/core/gen/assets.gen.dart';
 import 'package:FitGym/core/services/app_scope.dart';
 import 'package:FitGym/core/services/workout_service.dart';
@@ -10,6 +11,7 @@ import 'package:FitGym/model/personal_record_model.dart';
 import 'package:FitGym/model/week_day_model.dart';
 import 'package:FitGym/modules/layout/widgets/app_surface.dart';
 import 'package:FitGym/modules/layout/widgets/section_header.dart';
+import 'package:FitGym/modules/layout/widgets/stat_tile.dart';
 import 'package:FitGym/modules/layout/widgets/tab_page.dart';
 import 'package:flutter/material.dart';
 
@@ -43,11 +45,13 @@ class ProgressScreen extends StatelessWidget {
             spacing: 14,
             children: [
               Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                spacing: 8,
                 crossAxisAlignment: CrossAxisAlignment.baseline,
                 textBaseline: TextBaseline.alphabetic,
                 children: [
-                  Text('دقايق التمرين', style: AppTextStyles.body(15, fontWeight: FontWeight.w700)),
+                  Expanded(
+                    child: Text('دقايق التمرين', style: AppTextStyles.body(15, fontWeight: FontWeight.w700)),
+                  ),
                   Text.rich(
                     TextSpan(
                       children: [
@@ -78,21 +82,21 @@ class ProgressScreen extends StatelessWidget {
             spacing: 10,
             children: [
               Expanded(
-                child: _StatTile(
+                child: StatTile(
                   icon: Assets.icons.flame,
                   value: '${app.streak}',
                   label: 'أيام متتالية',
                 ),
               ),
               Expanded(
-                child: _StatTile(
+                child: StatTile(
                   icon: Assets.icons.dumbbell,
                   value: '${app.completedWorkouts}',
                   label: 'تمرين خلّصته',
                 ),
               ),
               Expanded(
-                child: _StatTile(icon: Assets.icons.timer, value: _hours(minutes), label: 'ساعة الأسبوع ده'),
+                child: StatTile(icon: Assets.icons.timer, value: _hours(minutes), label: 'ساعة الأسبوع ده'),
               ),
             ],
           ),
@@ -107,7 +111,7 @@ class ProgressScreen extends StatelessWidget {
                 radius: 16,
                 padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 16),
                 child: Text(
-                  'لسه مسجّلتش أوزان. دوس على أي تمرين في برنامج التمرين وسجّل وزنك.',
+                  'لسه مسجّلتش أوزان. في برنامج التمرين دوس على دايرة المجموعة وسجّل وزنك.',
                   style: AppTextStyles.caption,
                 ),
               ),
@@ -171,31 +175,6 @@ class _DayBar extends StatelessWidget {
   }
 }
 
-class _StatTile extends StatelessWidget {
-  const _StatTile({required this.icon, required this.value, required this.label});
-
-  final SvgGenImage icon;
-  final String value;
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 14),
-      decoration: BoxDecoration(color: AppColors.surfaceRaised, borderRadius: BorderRadius.circular(18)),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        spacing: 8,
-        children: [
-          AppIcon(icon, color: AppColors.primary, size: 22),
-          Text(value, style: AppTextStyles.display(24, height: 1)),
-          Text(label, style: AppTextStyles.body(12, color: AppColors.textSecondary)),
-        ],
-      ),
-    );
-  }
-}
-
 class _RecordTile extends StatelessWidget {
   const _RecordTile({required this.record});
 
@@ -208,6 +187,7 @@ class _RecordTile extends StatelessWidget {
     return AppSurface(
       radius: 16,
       padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 12),
+      onTap: () => Navigator.pushNamed(context, AppRoutes.exerciseDetails, arguments: record.exercise),
       child: Row(
         spacing: 12,
         children: [

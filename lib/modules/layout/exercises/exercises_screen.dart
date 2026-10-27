@@ -9,6 +9,7 @@ import 'package:FitGym/model/muscle.dart';
 import 'package:FitGym/modules/layout/layout_screen.dart';
 import 'package:FitGym/modules/layout/widgets/app_surface.dart';
 import 'package:FitGym/modules/layout/widgets/icon_box.dart';
+import 'package:FitGym/modules/layout/widgets/section_header.dart';
 import 'package:FitGym/modules/layout/widgets/tab_page.dart';
 import 'package:flutter/material.dart';
 
@@ -20,20 +21,36 @@ class ExercisesScreen extends StatefulWidget {
 }
 
 class _ExercisesScreenState extends State<ExercisesScreen> {
+  static const _filters = <Muscle?>[null, ...Muscle.values];
+
   late final ValueNotifier<Muscle?> _filter;
+  final _scroll = ScrollController();
+  final _chipKeys = {for (final muscle in _filters) muscle: GlobalKey()};
   final _searchController = TextEditingController();
   bool _searching = false;
 
   @override
   void initState() {
     super.initState();
-    _filter = LayoutScreen.of(context).exerciseFilter;
+    _filter = LayoutScreen.of(context).exerciseFilter..addListener(_showFilterFromTop);
   }
 
   @override
   void dispose() {
+    _filter.removeListener(_showFilterFromTop);
+    _scroll.dispose();
     _searchController.dispose();
     super.dispose();
+  }
+
+  /// A new muscle starts at its first exercise, with its chip in view, even
+  /// when picked from the home screen.
+  void _showFilterFromTop() {
+    if (_scroll.hasClients) _scroll.jumpTo(0);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      final chip = _chipKeys[_filter.value]?.currentContext;
+      if (chip != null && chip.mounted) Scrollable.ensureVisible(chip, alignment: 0.5);
+    });
   }
 
   void _toggleSearch() {
@@ -43,19 +60,36 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
     });
   }
 
+  void _openExercise(ExerciseModel exercise) {
+    Navigator.pushNamed(context, AppRoutes.exerciseDetails, arguments: exercise);
+  }
+
   @override
   Widget build(BuildContext context) {
     return ValueListenableBuilder<Muscle?>(
       valueListenable: _filter,
       builder: (context, filter, _) {
-        final exercises = WorkoutService.exercisesFor(filter, query: _searchController.text.trim());
-        final filters = <Muscle?>[null, ...Muscle.values];
+        final query = _searchController.text.trim();
+        // Every muscle in its own section, or just the chosen one.
+        final sections = [
+          for (final muscle in filter == null ? Muscle.values : [filter])
+            (muscle: muscle, exercises: WorkoutService.exercisesFor(muscle, query: query)),
+        ].where((section) => section.exercises.isNotEmpty).toList();
 
         return TabPage(
+          controller: _scroll,
           children: [
             Row(
+              spacing: 10,
               children: [
                 Expanded(child: Text('اختر التمرين', style: AppTextStyles.pageTitle)),
+                IconBox(
+                  icon: Assets.icons.person,
+                  background: AppColors.surface,
+                  iconColor: AppColors.primary,
+                  label: 'عضلات الجسم',
+                  onPressed: () => Navigator.pushNamed(context, AppRoutes.muscles),
+                ),
                 IconBox(
                   icon: _searching ? Assets.icons.close : Assets.icons.search,
                   background: AppColors.primary,
@@ -92,31 +126,41 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
                   ),
                 ),
               ),
-            SizedBox(
-              height: 38,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: filters.length,
-                separatorBuilder: (_, _) => const SizedBox(width: 8),
-                itemBuilder: (context, index) {
-                  final muscle = filters[index];
-                  return _FilterChip(
-                    label: muscle?.label ?? 'الكل',
-                    selected: muscle == filter,
-                    onTap: () => _filter.value = muscle,
-                  );
-                },
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                spacing: 8,
+                children: [
+                  for (final muscle in _filters)
+                    _FilterChip(
+                      key: _chipKeys[muscle],
+                      label: muscle?.label ?? 'الكل',
+                      selected: muscle == filter,
+                      onTap: () => _filter.value = muscle,
+                    ),
+                ],
               ),
             ),
-            if (exercises.isEmpty)
+            if (sections.isEmpty)
               Padding(
                 padding: const EdgeInsets.symmetric(vertical: 32),
-                child: Text('مفيش تمارين هنا لسه', style: AppTextStyles.caption, textAlign: TextAlign.center),
-              )
-            else
-              _ExercisesGrid(
-                exercises: exercises,
-                onTap: (exercise) => Navigator.pushNamed(context, AppRoutes.muscles, arguments: exercise.muscle),
+                child: Text('مفيش تمارين بالاسم ده', style: AppTextStyles.caption, textAlign: TextAlign.center),
+              ),
+            for (final section in sections)
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                spacing: 12,
+                children: [
+                  if (filter == null)
+                    SectionHeader(
+                      title: section.muscle.label,
+                      trailing: Text(
+                        WorkoutService.exercisesCountLabel(section.exercises.length),
+                        style: AppTextStyles.caption,
+                      ),
+                    ),
+                  _ExercisesGrid(exercises: section.exercises, onTap: _openExercise),
+                ],
               ),
           ],
         );
@@ -126,7 +170,7 @@ class _ExercisesScreenState extends State<ExercisesScreen> {
 }
 
 class _FilterChip extends StatelessWidget {
-  const _FilterChip({required this.label, required this.selected, required this.onTap});
+  const _FilterChip({super.key, required this.label, required this.selected, required this.onTap});
 
   final String label;
   final bool selected;
@@ -142,14 +186,17 @@ class _FilterChip extends StatelessWidget {
         borderColor: selected ? null : AppColors.surfaceRaised,
         padding: EdgeInsets.symmetric(horizontal: selected ? 16 : 14),
         onTap: onTap,
-        child: Center(
-          widthFactor: 1,
-          child: Text(
+        child: SizedBox(
+          height: 38,
+          child: Center(
+            widthFactor: 1,
+            child: Text(
             label,
             style: AppTextStyles.body(
               14,
               fontWeight: selected ? FontWeight.w700 : FontWeight.w400,
               color: selected ? AppColors.background : AppColors.textPrimary,
+              ),
             ),
           ),
         ),

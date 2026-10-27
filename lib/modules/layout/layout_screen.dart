@@ -50,6 +50,14 @@ class LayoutScreenState extends State<LayoutScreen> {
     setState(() => _currentTab = exercisesTab);
   }
 
+  /// The body map, to pick which muscle's exercises to see.
+  void openMuscles() {
+    _exercisesNavigatorKey.currentState
+      ?..popUntil((route) => route.isFirst)
+      ..pushNamed(AppRoutes.muscles);
+    setState(() => _currentTab = exercisesTab);
+  }
+
   void openProgram() {
     _exercisesNavigatorKey.currentState
       ?..popUntil((route) => route.isFirst)

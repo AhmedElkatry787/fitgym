@@ -4,19 +4,20 @@ import 'package:flutter/material.dart';
 
 enum BodySide { front, back }
 
-/// The body figure from the design with [highlight] drawn in yellow.
+/// The body figure from the design with [highlight], if any, drawn in yellow.
 class BodyMap extends StatelessWidget {
   const BodyMap({super.key, required this.side, required this.highlight});
 
   final BodySide side;
-  final Muscle highlight;
+  final Muscle? highlight;
 
   @override
   Widget build(BuildContext context) {
     final sideLabel = side == BodySide.front ? 'الجسم من الأمام' : 'الجسم من الخلف';
+    final highlight = this.highlight;
 
     return Semantics(
-      label: '$sideLabel، ${highlight.label} متعلّم',
+      label: highlight == null ? sideLabel : '$sideLabel، ${highlight.label} متعلّم',
       child: CustomPaint(
         size: const Size(90, 170),
         painter: _BodyPainter(side: side, highlight: highlight),
@@ -29,7 +30,7 @@ class _BodyPainter extends CustomPainter {
   const _BodyPainter({required this.side, required this.highlight});
 
   final BodySide side;
-  final Muscle highlight;
+  final Muscle? highlight;
 
   @override
   void paint(Canvas canvas, Size size) {

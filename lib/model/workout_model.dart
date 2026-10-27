@@ -11,6 +11,9 @@ class WorkoutExerciseModel {
 
   /// e.g. `3 × 10-12`. Render it left-to-right so the numbers keep their order.
   String get label => '$sets × $reps';
+
+  /// Low end of the rep range, the starting point for a new set.
+  int get minReps => int.tryParse(RegExp(r'\d+').firstMatch(reps)?.group(0) ?? '') ?? 10;
 }
 
 class WorkoutModel {

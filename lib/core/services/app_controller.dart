@@ -4,7 +4,9 @@ import 'dart:math' as math;
 import 'package:FitGym/core/services/storage_service.dart';
 import 'package:FitGym/core/services/workout_service.dart';
 import 'package:FitGym/model/exercise_model.dart';
+import 'package:FitGym/model/exercise_session_model.dart';
 import 'package:FitGym/model/personal_record_model.dart';
+import 'package:FitGym/model/set_entry_model.dart';
 import 'package:FitGym/model/week_day_model.dart';
 import 'package:FitGym/model/workout_log_model.dart';
 import 'package:FitGym/model/workout_model.dart';
@@ -38,8 +40,9 @@ class AppController extends ChangeNotifier {
 
   WorkoutLogModel? get _todayLog => _logs[dateKey(today)];
 
-  /// No workout planned today and none started.
-  bool get isRestDay => plannedFor(today) == null && _todayLog == null;
+  /// No workout planned today and none started. Training picked exercises
+  /// doesn't end a rest day.
+  bool get isRestDay => plannedFor(today) == null && _todayLog?.workoutId == null;
 
   ({DateTime day, WorkoutModel workout}) get nextWorkout {
     for (var i = 1; i <= 7; i++) {
@@ -52,44 +55,88 @@ class AppController extends ChangeNotifier {
 
   /// Today's workout. On a rest day it's the next one, so you can train early.
   WorkoutModel get activeWorkout {
-    final started = _todayLog;
-    if (started != null) {
-      final workout = WorkoutService.workoutById(started.workoutId);
+    final startedId = _todayLog?.workoutId;
+    if (startedId != null) {
+      final workout = WorkoutService.workoutById(startedId);
       if (workout != null) return workout;
     }
     return plannedFor(today) ?? nextWorkout.workout;
   }
 
-  int doneSets(ExerciseModel exercise) => _todayLog?.doneSets[exercise.id] ?? 0;
+  /// How [exercise] is trained: as in today's workout, else as on its day in
+  /// the plan, else 3 sets in its muscle's rep range.
+  WorkoutExerciseModel itemFor(ExerciseModel exercise) {
+    for (final item in activeWorkout.exercises) {
+      if (item.exercise == exercise) return item;
+    }
+    final planned = WorkoutService.plannedDaysFor(exercise).firstOrNull;
+    return planned?.item ?? WorkoutExerciseModel(exercise: exercise, sets: 3, reps: exercise.muscle.reps);
+  }
+
+  /// Exercises trained today on top of today's workout, in the order started.
+  List<ExerciseModel> get extraExercisesToday {
+    final planned = {for (final item in activeWorkout.exercises) item.exercise.id};
+    final sets = _todayLog?.sets ?? const <String, List<SetEntryModel>>{};
+    return [
+      for (final MapEntry(key: id, value: entries) in sets.entries)
+        if (entries.isNotEmpty && !planned.contains(id)) ?WorkoutService.exerciseById(id),
+    ];
+  }
+
+  /// Today's finished sets of [exercise], in order.
+  List<SetEntryModel> setsFor(ExerciseModel exercise) => _todayLog?.setsOf(exercise.id) ?? const [];
+
+  int doneSets(ExerciseModel exercise) => setsFor(exercise).length;
 
   int get activeDoneSets => _todayLog == null ? 0 : _doneSetsIn(_todayLog!);
 
   bool get activeComplete => activeDoneSets >= activeWorkout.totalSets;
 
-  double? todayWeight(ExerciseModel exercise) => _todayLog?.weights[exercise.id];
-
-  /// The most recent weight logged for [exercise], to start the picker from.
-  double? lastWeight(ExerciseModel exercise) {
+  /// Every day [exercise] was trained, oldest first.
+  List<ExerciseSessionModel> history(ExerciseModel exercise) {
     final dates = _logs.keys.toList()..sort();
-    for (final date in dates.reversed) {
-      final weight = _logs[date]!.weights[exercise.id];
-      if (weight != null) return weight;
-    }
-    return null;
+    return [
+      for (final date in dates)
+        if (_logs[date]!.setsOf(exercise.id) case final sets when sets.isNotEmpty)
+          ExerciseSessionModel(date: DateTime.parse(date), sets: sets),
+    ];
   }
 
-  void setDoneSets(ExerciseModel exercise, int sets) {
-    _updateToday((log) => log.copyWith(doneSets: {...log.doneSets, exercise.id: sets}));
+  /// The last time [exercise] was trained before today.
+  ExerciseSessionModel? previousSession(ExerciseModel exercise) {
+    return history(exercise).where((session) => session.date.isBefore(today)).lastOrNull;
   }
 
-  void setWeight(ExerciseModel exercise, double kg) {
-    _updateToday((log) => log.copyWith(weights: {...log.weights, exercise.id: kg}));
+  /// What a new set starts with: the set before it, else the best set last
+  /// time, else an empty bar at the bottom of the rep range.
+  SetEntryModel suggestedSet(WorkoutExerciseModel item) {
+    final start = setsFor(item.exercise).lastOrNull ?? previousSession(item.exercise)?.topSet;
+    if (start == null) return SetEntryModel(weightKg: item.exercise.bodyweight ? 0 : 20, reps: item.minReps);
+    // Sets saved before reps were tracked have 0 reps.
+    return start.reps > 0 ? start : SetEntryModel(weightKg: start.weightKg, reps: item.minReps);
   }
 
-  void _updateToday(WorkoutLogModel Function(WorkoutLogModel log) update) {
+  void addSet(ExerciseModel exercise, SetEntryModel set) {
+    _updateToday(exercise, (sets) => [...sets, set]);
+  }
+
+  void updateSet(ExerciseModel exercise, int index, SetEntryModel set) {
+    _updateToday(exercise, (sets) => [...sets]..[index] = set);
+  }
+
+  void removeSet(ExerciseModel exercise, int index) {
+    _updateToday(exercise, (sets) => [...sets]..removeAt(index));
+  }
+
+  void _updateToday(ExerciseModel exercise, List<SetEntryModel> Function(List<SetEntryModel> sets) update) {
     final key = dateKey(today);
-    final log = _logs[key] ?? WorkoutLogModel(date: key, workoutId: activeWorkout.id);
-    _logs[key] = update(log);
+    var log = _logs[key] ?? WorkoutLogModel(date: key, workoutId: plannedFor(today)?.id);
+    // On a rest day, starting one of the next workout's exercises starts that
+    // workout early; any other exercise stays a picked one.
+    if (log.workoutId == null && activeWorkout.exercises.any((item) => item.exercise == exercise)) {
+      log = log.withWorkout(activeWorkout.id);
+    }
+    _logs[key] = log.withSets(exercise.id, update(log.setsOf(exercise.id)));
     unawaited(_storage.saveLogs(_logs.values));
     notifyListeners();
   }
@@ -153,20 +200,22 @@ class AppController extends ChangeNotifier {
     return count;
   }
 
-  /// Best weight per exercise, heaviest first.
+  /// Best weight per exercise, heaviest first. Body-weight-only sets don't
+  /// count.
   List<PersonalRecordModel> get topRecords {
-    final history = <String, List<double>>{};
-    final dates = _logs.keys.toList()..sort();
-    for (final date in dates) {
-      for (final entry in _logs[date]!.weights.entries) {
-        (history[entry.key] ??= []).add(entry.value);
-      }
-    }
+    final ids = {for (final log in _logs.values) ...log.sets.keys};
 
     final records = <PersonalRecordModel>[];
-    history.forEach((id, weights) {
+    for (final id in ids) {
       final exercise = WorkoutService.exerciseById(id);
-      if (exercise == null) return;
+      if (exercise == null) continue;
+
+      // Heaviest set of each session, oldest first.
+      final weights = [
+        for (final session in history(exercise))
+          if (session.topSet.weightKg > 0) session.topSet.weightKg,
+      ];
+      if (weights.isEmpty) continue;
 
       final best = weights.reduce(math.max);
       final before = weights.sublist(0, weights.indexOf(best));
@@ -178,32 +227,43 @@ class AppController extends ChangeNotifier {
           gainKg: previousBest == null ? null : best - previousBest,
         ),
       );
-    });
+    }
 
     records.sort((a, b) => b.weightKg.compareTo(a.weightKg));
     return records.take(3).toList();
   }
 
+  WorkoutModel? _workoutOf(WorkoutLogModel log) {
+    final id = log.workoutId;
+    return id == null ? null : WorkoutService.workoutById(id);
+  }
+
+  /// Sets done of the log's planned workout, at most its planned count each.
   int _doneSetsIn(WorkoutLogModel log) {
-    final workout = WorkoutService.workoutById(log.workoutId);
+    final workout = _workoutOf(log);
     if (workout == null) return 0;
     return workout.exercises.fold(
       0,
-      (total, item) => total + math.min(log.doneSets[item.exercise.id] ?? 0, item.sets),
+      (total, item) => total + math.min(log.setsOf(item.exercise.id).length, item.sets),
     );
   }
 
+  /// The planned workout is finished, or, on a rest day, anything was trained.
   bool _isComplete(WorkoutLogModel? log) {
     if (log == null) return false;
-    final workout = WorkoutService.workoutById(log.workoutId);
-    return workout != null && _doneSetsIn(log) >= workout.totalSets;
+    final workout = _workoutOf(log);
+    if (workout == null) return log.totalSets > 0;
+    return _doneSetsIn(log) >= workout.totalSets;
   }
 
-  /// Estimated from the workout's length and how many of its sets were done.
+  /// Rough minutes per set, rest included, for days without a planned workout.
+  static const _minutesPerSet = 3.75;
+
+  /// Estimated from every set done, at the planned workout's pace.
   int _minutesIn(WorkoutLogModel? log) {
     if (log == null) return 0;
-    final workout = WorkoutService.workoutById(log.workoutId);
-    if (workout == null) return 0;
-    return (workout.durationMinutes * _doneSetsIn(log) / workout.totalSets).round();
+    final workout = _workoutOf(log);
+    final perSet = workout == null ? _minutesPerSet : workout.durationMinutes / workout.totalSets;
+    return (perSet * log.totalSets).round();
   }
 }
